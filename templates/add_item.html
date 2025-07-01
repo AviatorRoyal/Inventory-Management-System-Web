@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{{ item and 'Edit Item' or 'Add New Item' }} | Shree Dwarka Agency</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #dbeafe, #fef9c3);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    .title-container {
+      text-align: center;
+      padding: 30px 20px 10px 20px;
+    }
+
+    .title-container h1 {
+      font-size: 2.5rem;
+      color: #1e3a8a;
+      margin-bottom: 0.2em;
+    }
+
+    .title-container h2 {
+      font-size: 1.5rem;
+      color: #475569;
+      font-weight: 400;
+      margin-top: 0;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    .card h3 {
+      text-align: center;
+      color: #1e293b;
+      margin-bottom: 20px;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="file"],
+    select {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+    }
+
+    label {
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    .form-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background-color: #1d4ed8;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: #1e40af;
+    }
+
+    .btn-danger {
+      background-color: #dc2626;
+      color: white;
+      text-decoration: none;
+      text-align: center;
+      padding: 10px 20px;
+      border-radius: 8px;
+      display: inline-block;
+    }
+
+    .btn-danger:hover {
+      background-color: #b91c1c;
+    }
+
+    .preview-img {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    
+    .top-bar {
+    padding: 20px;
+    background-color: transparent;
+    display: flex;
+    justify-content: flex-start;
+    }
+
+    .dashboard-button {
+    background-color: #1d4ed8;
+    color: white;
+    font-weight: bold;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    transition: background-color 0.2s ease;
+    }
+
+    .dashboard-button:hover {
+    background-color: #1e40af;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="title-container">
+    <h1>Shree Dwarka Agency</h1>
+    <h2>Inventory Management System</h2>
+  </div>
+
+  <div class="container">
+    <div class="top-bar">
+        <button onclick="window.location.href=&quot;{{ url_for('dashboard') }}&quot;" class="dashboard-button">🏠 Dashboard</button>
+    </div>
+    <div class="card">
+      <h3>{{ item and 'Edit Item' or 'Add New Item' }}</h3>
+
+      <form method="POST" enctype="multipart/form-data">
+        <label>Item Name</label>
+        <input type="text" name="item" required value="{{ item.item if item else '' }}">
+
+        <label>Type</label>
+        <input type="text" name="type" required value="{{ item.type if item else '' }}">
+
+        <label>Quantity</label>
+        <input type="number" name="qty" min="0" required value="{{ item.qty if item else '' }}">
+
+        <label>Average Buy Price</label>
+        <input type="number" name="price" step="0.01" min="0" required value="{{ item.avg_buy_price if item else '' }}">
+
+        <label>Photo (Optional)</label>
+        <input type="file" name="photo" accept="image/*">
+
+        {% if item and item.photo %}
+          <img src="{{ url_for('static', filename='uploads/' ~ item.photo) }}" class="preview-img" alt="Item photo">
+        {% endif %}
+
+        <div class="form-buttons">
+          <button type="submit" class="btn-primary">{{ item and 'Update Item' or 'Add Item' }}</button>
+          {% if item %}
+            <a href="{{ url_for('delete_item', item_id=item.id) }}" class="btn-danger">Delete Item</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

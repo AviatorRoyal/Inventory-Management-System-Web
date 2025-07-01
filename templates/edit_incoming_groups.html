@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Edit Group | Shree Dwarka Agency</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #fefce8, #dbeafe);
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      text-align: center;
+      color: #1e3a8a;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 10px;
+      text-align: center;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+      background-color: #c7d2fe;
+      color: #1e3a8a;
+    }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    .submit-btn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: #1d4ed8;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .submit-btn:hover {
+      background-color: #1e40af;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📝 Edit Incoming Group - {{ date }}</h2>
+    <form method="POST">
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Type</th>
+            <th>Qty</th>
+            <th>Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in entries %}
+          <tr>
+            <td><input type="text" name="item_{{ loop.index0 }}" value="{{ entry.item }}"></td>
+            <td><input type="text" name="type_{{ loop.index0 }}" value="{{ entry.type }}"></td>
+            <td><input type="number" name="qty_{{ loop.index0 }}" value="{{ entry.qty }}"></td>
+            <td><input type="number" name="price_{{ loop.index0 }}" value="{{ entry.buyprice }}"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <button type="submit" class="submit-btn">✅ Update Group</button>
+    </form>
+  </div>
+</body>
+</html>

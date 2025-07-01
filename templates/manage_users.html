@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Manage Users | Shree Dwarka Agency</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #dbeafe, #fef9c3);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    .title-container {
+      text-align: center;
+      padding: 30px 20px 10px 20px;
+    }
+
+    .title-container h1 {
+      font-size: 2.5rem;
+      color: #1e3a8a;
+      margin-bottom: 0.2em;
+    }
+
+    .title-container h2 {
+      font-size: 1.5rem;
+      color: #475569;
+      font-weight: 400;
+      margin-top: 0;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 15px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    .card h3 {
+      text-align: center;
+      color: #1e293b;
+      margin-bottom: 20px;
+    }
+
+    form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+    }
+
+    form input, form select {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      width: 200px;
+    }
+
+    form button {
+      background-color: #1d4ed8;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    form button:hover {
+      background-color: #1e40af;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f1f5f9;
+      color: #1e293b;
+    }
+
+    .btn-edit {
+      padding: 6px 12px;
+      background-color: #0ea5e9;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+
+    .btn-edit:hover {
+      background-color: #0369a1;
+    }
+
+    .top-bar {
+      padding: 20px;
+      background-color: transparent;
+      display: flex;
+      justify-content: flex-start;
+    }
+
+    .dashboard-button {
+      background-color: #1d4ed8;
+      color: white;
+      font-weight: bold;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      transition: background-color 0.2s ease;
+    }
+
+    .dashboard-button:hover {
+      background-color: #1e40af;
+    }
+
+    @media (max-width: 600px) {
+      form {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      form input, form select {
+        width: 100%;
+      }
+
+    }
+  </style>
+</head>
+<body>
+  <div class="title-container">
+    <h1>Shree Dwarka Agency</h1>
+    <h2>Inventory Management System</h2>
+  </div>
+
+  <div class="container">
+    <div class="top-bar">
+      <button onclick="window.location.href='{{ url_for('dashboard') }}'" class="dashboard-button">🏠 Dashboard</button>
+    </div>
+    <div class="card">
+      <h3>{{ edit_user and 'Edit User' or 'Add New User' }}</h3>
+      <form method="POST" action="{{ url_for('manage_users') }}">
+        <input type="hidden" name="original_username" value="{{ edit_user.username if edit_user else '' }}">
+        <input type="text" name="name" placeholder="Full Name" required value="{{ edit_user.name if edit_user else '' }}">
+        <input type="text" name="username" placeholder="Username" required value="{{ edit_user.username if edit_user else '' }}">
+        <input type="password" name="password" placeholder="{{ 'New Password' if edit_user else 'Password' }}" {{ '' if edit_user else 'required' }}>
+        <select name="level" required>
+          <option value="">Select Level</option>
+          <option value="Admin" {{ 'selected' if edit_user and edit_user.level == 'Admin' else '' }}>Admin</option>
+          <option value="Write" {{ 'selected' if edit_user and edit_user.level == 'Write' else '' }}>Write</option>
+          <option value="Read" {{ 'selected' if edit_user and edit_user.level == 'Read' else '' }}>Read</option>
+        </select>
+        <button type="submit">{{ edit_user and 'Update User' or 'Add User' }}</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Existing Users</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Level</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td>{{ user.name }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ user.level }}</td>
+            <td>
+              <a href="{{ url_for('manage_users', edit=user.username) }}" class="btn-edit">Edit</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

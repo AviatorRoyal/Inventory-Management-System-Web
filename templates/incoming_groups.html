@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Incoming Groups | Shree Dwarka Agency</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #fefce8, #dbeafe);
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      text-align: center;
+      color: #1e3a8a;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: center;
+    }
+
+    th {
+      background-color: #c7d2fe;
+      color: #1e3a8a;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .edit-btn {
+      background-color: #3b82f6;
+    }
+
+    .delete-btn {
+      background-color: #ef4444;
+    }
+
+    .edit-btn:hover {
+      background-color: #2563eb;
+    }
+
+    .delete-btn:hover {
+      background-color: #dc2626;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📋 Incoming Stock Groups</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in dates %}
+        <tr>
+          <td>{{ d.date }}</td>
+          <td>
+            <a href="{{ url_for('edit_incoming_group', date=d.date) }}"><button class="btn edit-btn">✏️ Edit</button></a>
+            <a href="{{ url_for('delete_incoming_group', date=d.date) }}" onclick="return confirm('Are you sure?')"><button class="btn delete-btn">🗑️ Delete</button></a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

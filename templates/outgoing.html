@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Outgoing Stock | Shree Dwarka Agency</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #fefce8, #dbeafe);
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      text-align: center;
+      color: #1e3a8a;
+    }
+
+    form table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 10px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #93c5fd;
+      color: #1e3a8a;
+    }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    .add-btn, .submit-btn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .add-btn {
+      background-color: #10b981;
+      color: white;
+    }
+
+    .add-btn:hover {
+      background-color: #059669;
+    }
+
+    .submit-btn {
+      background-color: #1d4ed8;
+      color: white;
+    }
+
+    .submit-btn:hover {
+      background-color: #1e40af;
+    }
+
+    .suggestions {
+      position: absolute;
+      background-color: white;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      z-index: 1000;
+      max-height: 150px;
+      overflow-y: auto;
+      width: 200px;
+    }
+
+    .suggest-item {
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+
+    .suggest-item:hover {
+      background-color: #e0f2fe;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📤 Outgoing Stock Entry</h2>
+    <form method="POST">
+      <label for="entry_date"><strong>Date:</strong></label>
+      <input type="text" name="entry_date" value="{{ today }}" readonly style="margin-bottom: 15px;" />
+
+      <table id="entry-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Type</th>
+            <th>Qty</th>
+            <th>Price</th>
+          </tr>
+        </thead>
+        <tbody id="entry-body">
+          <tr>
+            <td class="input-group">
+              <input type="text" name="item_0" class="item-input" autocomplete="off" oninput="suggest(this, 'item')" />
+              <div class="suggestions" id="suggest-item-0"></div>
+            </td>
+            <td class="input-group">
+              <input type="text" name="type_0" class="type-input" autocomplete="off" oninput="suggest(this, 'type')" />
+              <div class="suggestions" id="suggest-type-0"></div>
+            </td>
+            <td><input type="number" name="qty_0" min="1" /></td>
+            <td><input type="number" name="price_0" step="0.01" min="0" /></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <button type="button" class="add-btn" onclick="addRow()">➕ Add another item</button>
+      <br />
+      <button type="submit" class="submit-btn">✅ Submit</button>
+    </form>
+  </div>
+
+<script>
+let rowCount = 1;
+
+function addRow() {
+  const table = document.getElementById('entry-body');
+  const row = document.createElement('tr');
+
+  row.innerHTML = `
+    <td class="input-group">
+      <input type="text" name="item_${rowCount}" class="item-input" autocomplete="off" oninput="suggest(this, 'item')" />
+      <div class="suggestions" id="suggest-item-${rowCount}"></div>
+    </td>
+    <td class="input-group">
+      <input type="text" name="type_${rowCount}" class="type-input" autocomplete="off" oninput="suggest(this, 'type')" />
+      <div class="suggestions" id="suggest-type-${rowCount}"></div>
+    </td>
+    <td><input type="number" name="qty_${rowCount}" min="1" /></td>
+    <td><input type="number" name="price_${rowCount}" step="0.01" min="0" /></td>
+  `;
+  table.appendChild(row);
+  rowCount++;
+}
+
+function suggest(input, fieldType) {
+  const query = input.value;
+  const rowId = input.name.split('_')[1];
+  const suggestBoxId = `suggest-${fieldType}-${rowId}`;
+  const suggestBox = document.getElementById(suggestBoxId);
+
+  if (query.length < 1) {
+    suggestBox.innerHTML = '';
+    return;
+  }
+
+  fetch(`/suggest_${fieldType}s?q=${encodeURIComponent(query)}`)
+    .then(response => response.json())
+    .then(data => {
+      suggestBox.innerHTML = '';
+      data.forEach(item => {
+        const div = document.createElement('div');
+        div.textContent = item;
+        div.className = 'suggest-item';
+        div.onclick = () => {
+          input.value = item;
+          suggestBox.innerHTML = '';
+        };
+        suggestBox.appendChild(div);
+      });
+    });
+}
+</script>
+
+</body>
+</html>

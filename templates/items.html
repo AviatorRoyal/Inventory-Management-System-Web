@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>View Items | Shree Dwarka Agency</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #dbeafe, #fef9c3);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    .title-container {
+      text-align: center;
+      padding: 30px 20px 10px 20px;
+    }
+
+    .title-container h1 {
+      font-size: 2.5rem;
+      color: #1e3a8a;
+      margin-bottom: 0.2em;
+    }
+
+    .title-container h2 {
+      font-size: 1.5rem;
+      color: #475569;
+      font-weight: 400;
+      margin-top: 0;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    .card h3 {
+      text-align: center;
+      color: #1e293b;
+      margin-bottom: 20px;
+    }
+
+    .search-form {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .search-form input[type="text"] {
+      padding: 10px;
+      width: 300px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    .search-form button {
+      padding: 10px 16px;
+      border: none;
+      background-color: #1d4ed8;
+      color: white;
+      font-weight: bold;
+      border-radius: 8px;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+
+    .search-form button:hover {
+      background-color: #1e40af;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background-color: #f1f5f9;
+      color: #1e293b;
+    }
+
+    img.item-photo {
+      width: 50px;
+      height: 50px;
+      border-radius: 6px;
+      object-fit: cover;
+      box-shadow: 0 0 3px rgba(0,0,0,0.15);
+    }
+
+    .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    }
+
+    .table-responsive table {
+    min-width: 600px;
+    }
+
+    .top-bar {
+      padding: 20px;
+      background-color: transparent;
+      display: flex;
+      justify-content: flex-start;
+    }
+
+    .dashboard-button {
+      background-color: #1d4ed8;
+      color: white;
+      font-weight: bold;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      transition: background-color 0.2s ease;
+    }
+
+    .dashboard-button:hover {
+      background-color: #1e40af;
+    }
+
+      
+    @media (max-width: 600px) {
+      .search-form input[type="text"] {
+        width: 90%;
+      }
+
+      table, th, td {
+        font-size: 0.9rem;
+      }
+
+      img.item-photo {
+        width: 40px;
+        height: 40px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="title-container">
+    <h1>Shree Dwarka Agency</h1>
+    <h2>Inventory Management System</h2>
+  </div>
+
+  <div class="container">
+    <div class="top-bar">
+      <button onclick="window.location.href='{{ url_for('dashboard') }}'" class="dashboard-button">🏠 Dashboard</button>
+    </div>
+    <div class="card">
+      <h3>View Items</h3>
+
+        <form class="search-form" method="GET" action="{{ url_for('items') }}">
+        <input type="text" name="q" placeholder="Search item name..." value="{{ query }}">
+
+        <select name="type" style="padding: 10px; border-radius: 8px;">
+            <option value="">All Types</option>
+            {% for t in all_types %}
+            <option value="{{ t }}" {% if selected_type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">🔍 Search</button>
+        </form>
+
+      <div class="table-responsive">    
+      <table>
+        <thead>
+          <tr>
+            <th>Photo</th>
+            <th>Item Name</th>
+            <th>Type</th>
+            <th>Quantity</th>
+            <th>Avg Buy Price</th>
+            {% if session.level in ['Admin', 'Write'] %}
+            <th>Actions</th>
+            {% endif %}
+
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>
+              {% if item[5] %}
+              <img src="{{ url_for('static', filename='uploads/' ~ item[5]) }}" class="item-photo" alt="item photo">
+              {% else %}
+              <span style="color: #ccc;">No Image</span>
+              {% endif %}
+            </td>
+            <td>{{ item[1] }}</td>
+            <td>{{ item[2] }}</td>
+            <td>{{ item[3] }}</td>
+            <td>₹{{ '%.2f' % item[4] }}</td>
+            {% if session.level in ['Admin', 'Write'] %}
+            <td><a href="{{ url_for('edit_item', item_id=item[0]) }}" class="btn-primary"><button>Edit</button></a></td>
+            {% endif %}
+
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
