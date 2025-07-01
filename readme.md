@@ -41,14 +41,81 @@ gunicorn --timeout 90 --bind 0.0.0.0:8000 app:app
 
 🛠️ Git Commands
 
-Task	Command
-Fetch all from GitHub	git fetch origin
-List all branches	git branch -a
-Track and checkout remote branch	git checkout -u origin/<branch_name>
-Switch to a branch	git checkout <branch_name>
-Delete a branch	git branch -d <branch_name>
-Pull latest changes	git pull
-Restore a file	git restore app.py
+<table>
+  <thead>
+    <tr>
+      <th>Command</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>git clone &lt;url&gt;</code></td>
+      <td>Clone a remote repository</td>
+    </tr>
+    <tr>
+      <td><code>git status</code></td>
+      <td>Check the current status of the working directory</td>
+    </tr>
+    <tr>
+      <td><code>git add &lt;file&gt;</code></td>
+      <td>Stage changes for commit</td>
+    </tr>
+    <tr>
+      <td><code>git commit -m "message"</code></td>
+      <td>Commit staged changes with a message</td>
+    </tr>
+    <tr>
+      <td><code>git push</code></td>
+      <td>Push committed changes to remote repository</td>
+    </tr>
+    <tr>
+      <td><code>git pull</code></td>
+      <td>Fetch and merge changes from remote</td>
+    </tr>
+    <tr>
+      <td><code>git branch</code></td>
+      <td>List all local branches</td>
+    </tr>
+    <tr>
+      <td><code>git branch &lt;name&gt;</code></td>
+      <td>Create a new branch</td>
+    </tr>
+    <tr>
+      <td><code>git checkout &lt;branch&gt;</code></td>
+      <td>Switch to a different branch</td>
+    </tr>
+    <tr>
+      <td><code>git merge &lt;branch&gt;</code></td>
+      <td>Merge a branch into the current branch</td>
+    </tr>
+    <tr>
+      <td><code>git fetch</code></td>
+      <td>Download changes from remote (but don’t merge)</td>
+    </tr>
+    <tr>
+      <td><code>git remote -v</code></td>
+      <td>View remote repository URLs</td>
+    </tr>
+    <tr>
+      <td><code>git log --oneline</code></td>
+      <td>Show commit history in compact form</td>
+    </tr>
+    <tr>
+      <td><code>git reset --hard &lt;commit&gt;</code></td>
+      <td>Reset current branch to a specific commit (destructive)</td>
+    </tr>
+    <tr>
+      <td><code>git stash</code></td>
+      <td>Temporarily save uncommitted changes</td>
+    </tr>
+    <tr>
+      <td><code>git stash pop</code></td>
+      <td>Apply the most recent stash</td>
+    </tr>
+  </tbody>
+</table>
+
 
 📂 Project Structure
 ```
