@@ -1,54 +1,98 @@
 import os
-import sqlite3
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from datetime import datetime
-from werkzeug.security import check_password_hash
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_sqlalchemy import SQLAlchemy
+import boto3
+import uuid
+from dotenv import load_dotenv
+load_dotenv()
+
+
+# -----------------------------------------
+# Flask + Config
+# -----------------------------------------
+from config import Config
 
 app = Flask(__name__)
-app.secret_key = 'sda_secret_key'
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config.from_object(Config)
 
-# Ensure upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+db = SQLAlchemy(app)
 
-# DB initialization
-from werkzeug.security import generate_password_hash
+# -----------------------------------------
+# S3 Upload Helper
+# -----------------------------------------
+def upload_to_s3(file):
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=app.config["AWS_ACCESS_KEY_ID"],
+        aws_secret_access_key=app.config["AWS_SECRET_ACCESS_KEY"],
+        region_name=app.config["AWS_REGION"]
+    )
 
+    filename = f"{uuid.uuid4().hex}_{file.filename}"
+
+    s3.upload_fileobj(
+        file,
+        app.config["AWS_S3_BUCKET"],
+        filename,
+        ExtraArgs={"ACL": "public-read"}
+    )
+
+    return f"https://{app.config['AWS_S3_BUCKET']}.s3.amazonaws.com/{filename}"
+
+# -----------------------------------------
+# SQLAlchemy Models
+# -----------------------------------------
+class Item(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    item = db.Column(db.String(200), nullable=False)
+    type = db.Column(db.String(200), nullable=False)
+    qty = db.Column(db.Integer, default=0)
+    avg_buy_price = db.Column(db.Float)
+    photo = db.Column(db.String(500))   # S3 URL
+
+class Incoming(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(50))
+    itemid = db.Column(db.Integer)
+    item = db.Column(db.String(200))
+    type = db.Column(db.String(200))
+    qty = db.Column(db.Integer)
+    buyprice = db.Column(db.Float)
+
+class Outgoing(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(50))
+    itemid = db.Column(db.Integer)
+    item = db.Column(db.String(200))
+    type = db.Column(db.String(200))
+    qty = db.Column(db.Integer)
+    sellprice = db.Column(db.Float)
+
+class User(db.Model):
+    name = db.Column(db.String(200), nullable=False)
+    username = db.Column(db.String(200), primary_key=True)
+    password = db.Column(db.String(500), nullable=False)
+    level = db.Column(db.String(10), nullable=False)
+
+# -----------------------------------------
+# Initialize DB (only once)
+# -----------------------------------------
+@app.before_request
 def init_db():
-    with sqlite3.connect('inventory.db') as conn:
-        cur = conn.cursor()
-        cur.execute('''CREATE TABLE IF NOT EXISTS items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            item TEXT NOT NULL,
-            type TEXT NOT NULL,
-            qty INTEGER DEFAULT 0,
-            avg_buy_price REAL,
-            photo TEXT
-        )''')
-        cur.execute('''CREATE TABLE IF NOT EXISTS incoming (
-            date TEXT, itemid INTEGER, item TEXT, type TEXT, qty INTEGER, buyprice REAL
-        )''')
-        cur.execute('''CREATE TABLE IF NOT EXISTS outgoing (
-            date TEXT, itemid INTEGER, item TEXT, type TEXT, qty INTEGER, sellprice REAL
-        )''')
-        cur.execute('''CREATE TABLE IF NOT EXISTS users (
-            name TEXT NOT NULL,
-            username TEXT PRIMARY KEY,
-            password TEXT NOT NULL,
-            level TEXT CHECK(level IN ('Admin', 'Write', 'Read')) NOT NULL
-        )''')
-        # Insert default admin user if not exists
-        cur.execute("SELECT * FROM users WHERE username = 'Admin'")
-        if not cur.fetchone():
-            hashed_pw = generate_password_hash('Bhaskar123')
-            cur.execute("INSERT INTO users (name, username, password, level) VALUES (?, ?, ?, ?)",
-                        ('Ramanuj', 'Admin', hashed_pw, 'Admin'))
-        conn.commit()
+    db.create_all()
 
+    # Default admin user
+    if not User.query.filter_by(username='Admin').first():
+        hashed_pw = generate_password_hash("Bhaskar123")
+        admin = User(name="Ramanuj", username="Admin", password=hashed_pw, level="Admin")
+        db.session.add(admin)
+        db.session.commit()
 
-# Initialize DB when app starts
-
+# -----------------------------------------
 # Routes
+# -----------------------------------------
 @app.route('/')
 def login():
     return render_template('login.html')
@@ -58,26 +102,26 @@ def login():
 def do_login():
     user = request.form['username']
     pw = request.form['password']
-    with sqlite3.connect('inventory.db') as conn:
-        conn.row_factory = sqlite3.Row  # ✅ Enables named column access
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE username = ?", (user,))
-        row = cur.fetchone()
 
-        if row and check_password_hash(row['password'], pw):  # ✅ Correct hash check
-            session['logged_in'] = True
-            session['username'] = row['username']
-            session['fullname'] = row['name']  # ✅ Storing full name
-            session['level'] = row['level']
-            return redirect(url_for('dashboard'))
+    # Query using SQLAlchemy instead of sqlite3
+    row = User.query.filter_by(username=user).first()
+
+    if row and check_password_hash(row.password, pw):
+        session['logged_in'] = True
+        session['username'] = row.username
+        session['fullname'] = row.name
+        session['level'] = row.level
+        return redirect(url_for('dashboard'))
 
     return render_template('login.html', error="Invalid credentials")
+
 
 @app.route('/dashboard')
 def dashboard():
     if not session.get('logged_in'):
         return redirect('/')
     return render_template('dashboard.html')
+
 
 @app.route('/items')
 def items():
@@ -87,27 +131,30 @@ def items():
     q = request.args.get('q', '')
     item_type = request.args.get('type', '')
 
-    with sqlite3.connect('inventory.db') as conn:
-        cur = conn.cursor()
-        
-        # Get all unique types for the dropdown
-        cur.execute("SELECT DISTINCT type FROM items")
-        all_types = [row[0] for row in cur.fetchall()]
+    # Get all unique types for dropdown
+    all_types = [row.type for row in db.session.query(Item.type).distinct().all()]
 
-        # Build query based on filters
-        query = "SELECT * FROM items WHERE 1=1"
-        params = []
-        if q:
-            query += " AND item LIKE ?"
-            params.append('%' + q + '%')
-        if item_type:
-            query += " AND type = ?"
-            params.append(item_type)
+    # Base query
+    query = Item.query
 
-        cur.execute(query, params)
-        results = cur.fetchall()
+    # Apply search filter
+    if q:
+        query = query.filter(Item.item.ilike(f"%{q}%"))
 
-    return render_template('items.html', items=results, query=q, selected_type=item_type, all_types=all_types)
+    # Apply type filter
+    if item_type:
+        query = query.filter_by(type=item_type)
+
+    # Final results
+    results = query.all()
+
+    return render_template(
+        'items.html',
+        items=results,
+        query=q,
+        selected_type=item_type,
+        all_types=all_types
+    )
 
 @app.route('/add_item', methods=['GET', 'POST'])
 def add_item():
@@ -115,85 +162,102 @@ def add_item():
         return redirect('/')
 
     if request.method == 'POST':
-        item = request.form['item']
+        item_name = request.form['item']
         type_ = request.form['type']
         qty = int(request.form['qty'])
         price = float(request.form['price'])
-        photo = request.files['photo']
+        photo_file = request.files.get('photo')
 
-        with sqlite3.connect('inventory.db') as conn:
-            cur = conn.cursor()
-            cur.execute("INSERT INTO items (item, type, qty, avg_buy_price) VALUES (?, ?, ?, ?)",
-                        (item, type_, qty, price))
-            item_id = cur.lastrowid
+        # Step 1: Create item WITHOUT photo first, to get ID
+        new_item = Item(
+            item=item_name,
+            type=type_,
+            qty=qty,
+            avg_buy_price=price,
+            photo=None
+        )
+        db.session.add(new_item)
+        db.session.commit()          # Saves and assigns ID
+        item_id = new_item.id
 
-            if photo and photo.filename != '':
-                ext = os.path.splitext(photo.filename)[1]
-                filename = f"{item_id}{ext}"
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                photo.save(filepath)
+        # Step 2: Upload photo to S3
+        if photo_file and photo_file.filename != "":
+            s3_url = upload_to_s3(photo_file)
 
-                cur.execute("UPDATE items SET photo = ? WHERE id = ?", (filename, item_id))
-
-            conn.commit()
+            # Update item with photo URL
+            new_item.photo = s3_url
+            db.session.commit()
 
         return redirect(url_for('items'))
 
     return render_template('add_item.html', item=None)
+
 
 @app.route('/edit_item/<int:item_id>', methods=['GET', 'POST'])
 def edit_item(item_id):
     if not session.get('logged_in'):
         return redirect('/')
 
-    with sqlite3.connect('inventory.db') as conn:
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
+    # Fetch the item using SQLAlchemy
+    item = Item.query.get_or_404(item_id)
 
-        if request.method == 'POST':
-            item = request.form['item']
-            type_ = request.form['type']
-            qty = int(request.form['qty'])
-            price = float(request.form['price'])
-            photo = request.files['photo']
+    if request.method == 'POST':
+        item_name = request.form['item']
+        type_ = request.form['type']
+        qty = int(request.form['qty'])
+        price = float(request.form['price'])
+        photo_file = request.files.get('photo')
 
-            cur.execute("UPDATE items SET item = ?, type = ?, qty = ?, avg_buy_price = ? WHERE id = ?",
-                        (item, type_, qty, price, item_id))
+        # Update item values
+        item.item = item_name
+        item.type = type_
+        item.qty = qty
+        item.avg_buy_price = price
 
-            if photo and photo.filename != '':
-                ext = os.path.splitext(photo.filename)[1]
-                filename = f"{item_id}{ext}"
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                photo.save(filepath)
-                cur.execute("UPDATE items SET photo = ? WHERE id = ?", (filename, item_id))
+        # Upload new photo to S3 if provided
+        if photo_file and photo_file.filename != "":
+            s3_url = upload_to_s3(photo_file)
+            item.photo = s3_url
 
-            conn.commit()
-            return redirect(url_for('items'))
-
-        cur.execute("SELECT * FROM items WHERE id = ?", (item_id,))
-        item = cur.fetchone()
+        db.session.commit()
+        return redirect(url_for('items'))
 
     return render_template('add_item.html', item=item)
+
 
 @app.route('/delete_item/<int:item_id>')
 def delete_item(item_id):
     if not session.get('logged_in'):
         return redirect('/')
 
-    with sqlite3.connect('inventory.db') as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT photo FROM items WHERE id = ?", (item_id,))
-        row = cur.fetchone()
-        if row and row[0]:
-            try:
-                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], row[0]))
-            except FileNotFoundError:
-                pass
+    # Fetch the item
+    item = Item.query.get_or_404(item_id)
 
-        cur.execute("DELETE FROM items WHERE id = ?", (item_id,))
-        conn.commit()
+    # If item has a photo URL → delete from S3
+    if item.photo:
+        try:
+            # Extract S3 filename from full URL
+            bucket = os.getenv("AWS_S3_BUCKET")
+            key = item.photo.split(f"https://{bucket}.s3.amazonaws.com/")[-1]
+
+            s3 = boto3.client(
+                "s3",
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                region_name=os.getenv("AWS_REGION")
+            )
+
+            s3.delete_object(Bucket=bucket, Key=key)
+
+        except Exception as e:
+            print("S3 delete failed:", e)
+
+    # Delete the item from DB
+    db.session.delete(item)
+    db.session.commit()
 
     return redirect(url_for('items'))
+
 
 
 @app.route('/manage_users', methods=['GET', 'POST'])
@@ -210,38 +274,47 @@ def manage_users():
         level = request.form['level']
         original_username = request.form.get('original_username')
 
-        with sqlite3.connect('inventory.db') as conn:
-            cur = conn.cursor()
-            if original_username and original_username != '':
-                # Edit existing user
-                if password:
-                    hashed_pw = generate_password_hash(password)
-                    cur.execute("UPDATE users SET name=?, username=?, password=?, level=? WHERE username=?",
-                                (name, username, hashed_pw, level, original_username))
-                else:
-                    cur.execute("UPDATE users SET name=?, username=?, level=? WHERE username=?",
-                                (name, username, level, original_username))
-            else:
-                # Add new user
-                hashed_pw = generate_password_hash(password)
-                cur.execute("INSERT INTO users (name, username, password, level) VALUES (?, ?, ?, ?)",
-                            (name, username, hashed_pw, level))
-            conn.commit()
+        # If original_username exists → edit mode
+        if original_username:
+            user = User.query.filter_by(username=original_username).first()
+
+            if user:
+                user.name = name
+                user.username = username
+                user.level = level
+
+                if password:  # update password only if provided
+                    user.password = generate_password_hash(password)
+
+                db.session.commit()
+
+        else:
+            # Add new user
+            hashed_pw = generate_password_hash(password)
+            new_user = User(
+                name=name,
+                username=username,
+                password=hashed_pw,
+                level=level
+            )
+            db.session.add(new_user)
+            db.session.commit()
+
         return redirect(url_for('manage_users'))
 
-    # GET: Fetch user list and optionally user for edit
-    with sqlite3.connect('inventory.db') as conn:
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users")
-        users = cur.fetchall()
+    # GET logic
+    users = User.query.all()
 
-        edit_username = request.args.get('edit')
-        if edit_username:
-            cur.execute("SELECT * FROM users WHERE username=?", (edit_username,))
-            edit_user = cur.fetchone()
+    edit_username = request.args.get('edit')
+    if edit_username:
+        edit_user = User.query.filter_by(username=edit_username).first()
 
-    return render_template('manage_users.html', users=users, edit_user=edit_user)
+    return render_template(
+        'manage_users.html',
+        users=users,
+        edit_user=edit_user
+    )
+
 
 
 @app.route('/incoming', methods=['GET', 'POST'])
@@ -251,45 +324,62 @@ def incoming():
 
     if request.method == 'POST':
         entry_date = request.form['entry_date']
-        with sqlite3.connect('inventory.db') as conn:
-            cur = conn.cursor()
-            i = 0
-            while True:
-                item = request.form.get(f'item_{i}')
-                if item is None:
-                    break  # No more rows
 
-                item = item.strip()
-                type_ = request.form.get(f'type_{i}', '').strip()
-                qty = request.form.get(f'qty_{i}', '').strip()
-                price = request.form.get(f'price_{i}', '').strip()
+        i = 0
+        while True:
+            item_name = request.form.get(f'item_{i}')
+            if item_name is None:
+                break  # No more rows
 
-                if item and type_ and qty and price:
-                    qty = int(qty)
-                    price = float(price)
+            item_name = item_name.strip()
+            type_ = request.form.get(f'type_{i}', '').strip()
+            qty = request.form.get(f'qty_{i}', '').strip()
+            price = request.form.get(f'price_{i}', '').strip()
 
-                    # Check if item exists
-                    cur.execute("SELECT id FROM items WHERE item = ? AND type = ?", (item, type_))
-                    result = cur.fetchone()
+            if item_name and type_ and qty and price:
+                qty = int(qty)
+                price = float(price)
 
-                    if result:
-                        itemid = result[0]
-                        cur.execute("UPDATE items SET qty = qty + ? WHERE id = ?", (qty, itemid))
-                    else:
-                        cur.execute("INSERT INTO items (item, type, qty, avg_buy_price) VALUES (?, ?, ?, ?)",
-                                    (item, type_, 0, price))
-                        itemid = cur.lastrowid
+                # 1️⃣ Check if item exists
+                existing = Item.query.filter_by(item=item_name, type=type_).first()
 
-                    # Record in incoming
-                    cur.execute("INSERT INTO incoming (date, itemid, item, type, qty, buyprice) VALUES (?, ?, ?, ?, ?, ?)",
-                                (entry_date, itemid, item, type_, qty, price))
-                i += 1
+                if existing:
+                    itemid = existing.id
+                    existing.qty += qty     # Update stock
+                else:
+                    # Create new item
+                    new_item = Item(
+                        item=item_name,
+                        type=type_,
+                        qty=0,               # Start at 0 (like your old code)
+                        avg_buy_price=price
+                    )
+                    db.session.add(new_item)
+                    db.session.commit()      # Needed to get new_item.id
+                    itemid = new_item.id
 
-            conn.commit()
+                # 2️⃣ Insert incoming record
+                incoming_entry = Incoming(
+                    date=entry_date,
+                    itemid=itemid,
+                    item=item_name,
+                    type=type_,
+                    qty=qty,
+                    buyprice=price
+                )
+                db.session.add(incoming_entry)
+
+            i += 1
+
+        # Commit all changes at once
+        db.session.commit()
+
         return redirect(url_for('incoming'))
 
+    # GET: show today's date
     today = datetime.now().strftime('%Y-%m-%d')
     return render_template('incoming.html', today=today)
+
 
 
 @app.route('/outgoing', methods=['GET', 'POST'])
@@ -299,41 +389,54 @@ def outgoing():
 
     if request.method == 'POST':
         entry_date = request.form['entry_date']
-        with sqlite3.connect('inventory.db') as conn:
-            cur = conn.cursor()
-            i = 0
-            while True:
-                item = request.form.get(f'item_{i}')
-                if item is None:
-                    break  # End of entries
 
-                item = item.strip()
-                type_ = request.form.get(f'type_{i}', '').strip()
-                qty = request.form.get(f'qty_{i}', '').strip()
-                price = request.form.get(f'price_{i}', '').strip()
+        i = 0
+        while True:
+            item_name = request.form.get(f'item_{i}')
+            if item_name is None:
+                break
 
-                if item and type_ and qty and price:
-                    qty = int(qty)
-                    price = float(price)
+            item_name = item_name.strip()
+            type_ = request.form.get(f'type_{i}', '').strip()
+            qty = request.form.get(f'qty_{i}', '').strip()
+            price = request.form.get(f'price_{i}', '').strip()
 
-                    # Check if item exists
-                    cur.execute("SELECT id FROM items WHERE item = ? AND type = ?", (item, type_))
-                    result = cur.fetchone()
+            if item_name and type_ and qty and price:
+                qty = int(qty)
+                price = float(price)
 
-                    if result:
-                        itemid = result[0]
-                        cur.execute("UPDATE items SET qty = qty - ? WHERE id = ?", (qty, itemid))
-                    else:
-                        cur.execute("INSERT INTO items (item, type, qty, avg_buy_price) VALUES (?, ?, ?, ?)",
-                                    (item, type_, 0, price))
-                        itemid = cur.lastrowid
+                # 1️⃣ Check if item exists
+                existing = Item.query.filter_by(item=item_name, type=type_).first()
 
-                    # Record in outgoing
-                    cur.execute("INSERT INTO outgoing (date, itemid, item, type, qty, sellprice) VALUES (?, ?, ?, ?, ?, ?)",
-                                (entry_date, itemid, item, type_, qty, price))
-                i += 1
+                if existing:
+                    itemid = existing.id
+                    existing.qty -= qty  # Reduce stock
+                else:
+                    # Create new item with qty=0 (same behavior as old code)
+                    new_item = Item(
+                        item=item_name,
+                        type=type_,
+                        qty=0,
+                        avg_buy_price=price
+                    )
+                    db.session.add(new_item)
+                    db.session.commit()
+                    itemid = new_item.id
 
-            conn.commit()
+                # 2️⃣ Insert outgoing log
+                outgoing_entry = Outgoing(
+                    date=entry_date,
+                    itemid=itemid,
+                    item=item_name,
+                    type=type_,
+                    qty=qty,
+                    sellprice=price
+                )
+                db.session.add(outgoing_entry)
+
+            i += 1
+
+        db.session.commit()
         return redirect(url_for('outgoing'))
 
     today = datetime.now().strftime('%Y-%m-%d')
@@ -341,87 +444,147 @@ def outgoing():
 
 
 
+
 @app.route('/suggest_items')
 def suggest_items():
     q = request.args.get('q', '')
-    with sqlite3.connect('inventory.db') as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT DISTINCT item FROM items WHERE item LIKE ? LIMIT 5", (f'%{q}%',))
-        return jsonify([r[0] for r in cur.fetchall()])
+
+    if not q:
+        return jsonify([])
+
+    # SQLAlchemy version of: SELECT DISTINCT item FROM items WHERE item LIKE '%q%' LIMIT 5
+    results = (
+        db.session.query(Item.item)
+        .filter(Item.item.ilike(f"%{q}%"))
+        .distinct()
+        .limit(5)
+        .all()
+    )
+
+    return jsonify([r[0] for r in results])
+
 
 @app.route('/suggest_types')
 def suggest_types():
     q = request.args.get('q', '')
-    with sqlite3.connect('inventory.db') as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT DISTINCT type FROM items WHERE type LIKE ? LIMIT 5", (f'%{q}%',))
-        return jsonify([r[0] for r in cur.fetchall()])
+
+    if not q:
+        return jsonify([])
+
+    results = (
+        db.session.query(Item.type)
+        .filter(Item.type.ilike(f"%{q}%"))
+        .distinct()
+        .limit(5)
+        .all()
+    )
+
+    return jsonify([r[0] for r in results])
+
 
 @app.route('/incoming_groups')
 def incoming_groups():
     if not session.get('logged_in'):
         return redirect('/')
-    with sqlite3.connect('inventory.db') as conn:
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute("SELECT DISTINCT date FROM incoming ORDER BY date DESC")
-        dates = cur.fetchall()
+
+    # SELECT DISTINCT date FROM incoming ORDER BY date DESC
+    dates = (
+        db.session.query(Incoming.date)
+        .distinct()
+        .order_by(Incoming.date.desc())
+        .all()
+    )
+
+    # Convert to match your old template: list of rows/dicts
+    dates = [d[0] for d in dates]
+
     return render_template('incoming_groups.html', dates=dates)
+
 
 @app.route('/edit_incoming_group/<date>', methods=['GET', 'POST'])
 def edit_incoming_group(date):
     if not session.get('logged_in'):
         return redirect('/')
 
-    with sqlite3.connect('inventory.db') as conn:
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
+    if request.method == 'POST':
+        # 1️⃣ Delete all existing entries for that date
+        Incoming.query.filter_by(date=date).delete()
 
-        if request.method == 'POST':
-            cur.execute("DELETE FROM incoming WHERE date = ?", (date,))
-            i = 0
-            while True:
-                item = request.form.get(f'item_{i}')
-                type_ = request.form.get(f'type_{i}')
-                qty = request.form.get(f'qty_{i}')
-                price = request.form.get(f'price_{i}')
-                if not item:
-                    break
-                qty = int(qty)
-                price = float(price)
+        i = 0
+        while True:
+            item_name = request.form.get(f'item_{i}')
+            if not item_name:
+                break
 
-                # Check item ID
-                cur.execute("SELECT id FROM items WHERE item=? AND type=?", (item, type_))
-                row = cur.fetchone()
-                if row:
-                    itemid = row[0]
-                else:
-                    cur.execute("INSERT INTO items (item, type, qty, avg_buy_price) VALUES (?, ?, ?, ?)",
-                                (item, type_, 0, price))
-                    itemid = cur.lastrowid
+            type_ = request.form.get(f'type_{i}')
+            qty = request.form.get(f'qty_{i}')
+            price = request.form.get(f'price_{i}')
 
-                cur.execute("INSERT INTO incoming (date, itemid, item, type, qty, buyprice) VALUES (?, ?, ?, ?, ?, ?)",
-                            (date, itemid, item, type_, qty, price))
-                i += 1
+            qty = int(qty)
+            price = float(price)
 
-            conn.commit()
-            return redirect(url_for('incoming_groups'))
+            # 2️⃣ Find or create Item
+            existing = Item.query.filter_by(item=item_name, type=type_).first()
 
-        cur.execute("SELECT * FROM incoming WHERE date = ?", (date,))
-        entries = cur.fetchall()
+            if existing:
+                itemid = existing.id
+            else:
+                new_item = Item(
+                    item=item_name,
+                    type=type_,
+                    qty=0,
+                    avg_buy_price=price
+                )
+                db.session.add(new_item)
+                db.session.commit()
+                itemid = new_item.id
 
-    return render_template("edit_incoming_group.html", date=date, entries=entries)
+            # 3️⃣ Insert new incoming record
+            new_entry = Incoming(
+                date=date,
+                itemid=itemid,
+                item=item_name,
+                type=type_,
+                qty=qty,
+                buyprice=price
+            )
+            db.session.add(new_entry)
+
+            i += 1
+
+        db.session.commit()
+        return redirect(url_for('incoming_groups'))
+
+    # GET request — load entries for the date
+    entries = Incoming.query.filter_by(date=date).all()
+
+    return render_template(
+        "edit_incoming_group.html",
+        date=date,
+        entries=entries
+    )
+
 
 
 @app.route('/delete_incoming_group/<date>')
 def delete_incoming_group(date):
     if not session.get('logged_in'):
         return redirect('/')
-    with sqlite3.connect('inventory.db') as conn:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM incoming WHERE date = ?", (date,))
-        conn.commit()
+
+    # Delete all incoming records for the given date
+    Incoming.query.filter_by(date=date).delete()
+    db.session.commit()
+
     return redirect(url_for('incoming_groups'))
+
+@app.route('/debug_env')
+def debug_env():
+    from flask import jsonify
+    return jsonify({
+        "region": os.getenv("AWS_REGION"),
+        "bucket": os.getenv("AWS_S3_BUCKET"),
+        "database": os.getenv("DATABASE_URL")[:40] + "..."
+    })
 
 
 @app.route('/logout')
@@ -429,8 +592,6 @@ def do_logout():
     session.clear()
     return redirect(url_for('login'))
 
-
-init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
