@@ -34,10 +34,10 @@ def upload_to_s3(file):
 
     s3.upload_fileobj(
         file,
-        app.config["AWS_S3_BUCKET"],
-        filename,
-        ExtraArgs={"ACL": "public-read"}
+        os.getenv("AWS_S3_BUCKET"),
+        filename
     )
+
 
     return f"https://{app.config['AWS_S3_BUCKET']}.s3.amazonaws.com/{filename}"
 

@@ -198,20 +198,25 @@
           {% for item in items %}
           <tr>
             <td>
-              {% if item[5] %}
-              <img src="{{ url_for('static', filename='uploads/' ~ item[5]) }}" class="item-photo" alt="item photo">
+              {% if item.photo %}
+              <img src="{{ item.photo }}" class="item-photo" alt="item photo">
               {% else %}
               <span style="color: #ccc;">No Image</span>
               {% endif %}
             </td>
-            <td>{{ item[1] }}</td>
-            <td>{{ item[2] }}</td>
-            <td>{{ item[3] }}</td>
-            <td>₹{{ '%.2f' % item[4] }}</td>
-            {% if session.level in ['Admin', 'Write'] %}
-            <td><a href="{{ url_for('edit_item', item_id=item[0]) }}" class="btn-primary"><button>Edit</button></a></td>
-            {% endif %}
 
+            <td>{{ item.item }}</td>
+            <td>{{ item.type }}</td>
+            <td>{{ item.qty }}</td>
+            <td>₹{{ '%.2f' % item.avg_buy_price if item.avg_buy_price else '0.00' }}</td>
+
+            {% if session.level in ['Admin', 'Write'] %}
+            <td>
+              <a href="{{ url_for('edit_item', item_id=item.id) }}">
+                <button>Edit</button>
+              </a>
+            </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>
